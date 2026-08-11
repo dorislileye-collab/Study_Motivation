@@ -82,6 +82,7 @@ struct GameCenterView: View {
         NavigationStack(path: $path) {
             ZStack {
                 ThemedBackground()
+                PageDecorationLayer(page: .game)
                 ScrollView {
                     VStack(spacing: 16) {
                         Text("🎮 解压游戏")

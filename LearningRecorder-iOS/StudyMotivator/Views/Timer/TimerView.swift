@@ -80,6 +80,7 @@ struct TimerView: View {
     var body: some View {
         ZStack {
             ThemedBackground()
+            PageDecorationLayer(page: .timer)
 
             ScrollView {
                 VStack(spacing: 16) {

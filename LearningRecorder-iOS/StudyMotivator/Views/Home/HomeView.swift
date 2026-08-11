@@ -21,6 +21,7 @@ struct HomeView: View {
     var body: some View {
         ZStack {
             ThemedBackground()
+            PageDecorationLayer(page: .home)
             ScrollView {
                 VStack(spacing: 16) {
                     header

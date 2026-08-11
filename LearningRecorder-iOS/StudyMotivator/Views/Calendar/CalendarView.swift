@@ -19,6 +19,7 @@ struct CalendarView: View {
     var body: some View {
         ZStack {
             ThemedBackground()
+            PageDecorationLayer(page: .calendar)
             ScrollView {
                 VStack(spacing: 16) {
                     calendarCard

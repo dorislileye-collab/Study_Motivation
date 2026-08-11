@@ -16,6 +16,7 @@ struct MineView: View {
     var body: some View {
         ZStack {
             ThemedBackground()
+            PageDecorationLayer(page: .mine)
             ScrollView {
                 VStack(spacing: 16) {
                     Text("👤 我的")

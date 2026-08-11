@@ -25,5 +25,6 @@ struct ContentView: View {
                 .tag(4)
         }
         .tint(Color.css(theme.taskStyle.check))
+        .overlay(BackgroundDecorationLayer())
     }
 }
