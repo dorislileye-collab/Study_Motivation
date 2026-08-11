@@ -6,13 +6,17 @@
  */
 import { store } from './store.js';
 
+function resolveAudioFile(fileName) {
+  return new URL(`../public/audio/${fileName}`, import.meta.url).href;
+}
+
 // 白噪音列表
 const WHITE_NOISES = [
   { id: 'rain', name: '雨声', icon: '🌧️', price: 0, type: 'generated' },
   { id: 'clock', name: '时钟滴答', icon: '🕐', price: 0, type: 'generated' },
-  { id: 'stream', name: '溪流潺潺', icon: '🏞️', price: 150, type: 'audio', file: '/public/audio/rain.mp3' },
-  { id: 'crickets', name: '虫鸣夏夜', icon: '', price: 200, type: 'audio', file: '/public/audio/clock.mp3' },
-  { id: 'waves', name: '海浪轻拍', icon: '🌊', price: 250, type: 'audio', file: '/public/audio/snow-mountain.mp3' },
+  { id: 'stream', name: '溪流潺潺', icon: '🏞️', price: 150, type: 'audio', file: resolveAudioFile('rain.mp3') },
+  { id: 'crickets', name: '虫鸣夏夜', icon: '', price: 200, type: 'audio', file: resolveAudioFile('clock.mp3') },
+  { id: 'waves', name: '海浪轻拍', icon: '🌊', price: 250, type: 'audio', file: resolveAudioFile('snow-mountain.mp3') },
 ];
 
 // 播放状态
@@ -51,8 +55,8 @@ export function playWhiteNoise(id) {
     const owned = store.getOwnedWhiteNoises();
     if (!owned.includes(id)) {
       // 尝试购买
-      const result = store.spendCoins(noise.price);
-      if (!result.success) {
+      const spent = store.spendCoins(noise.price, `购买白噪音：${noise.name}`);
+      if (spent <= 0) {
         showToast(`金币不足，需要 ${noise.price} 金币`);
         return;
       }

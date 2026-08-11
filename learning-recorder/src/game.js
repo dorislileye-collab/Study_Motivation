@@ -28,10 +28,8 @@ export function renderGamePage() {
   const remainingMin = Math.floor(remainingSec / 60);
   const remainingSecLeft = remainingSec % 60;
 
-  // 检查是否已经超时
-  if (gameTimeUsed >= maxGameTime) {
-    isFrozen = true;
-  }
+  // 每次渲染都重算冻结状态，避免跨天后仍保持冻结
+  isFrozen = gameTimeUsed >= maxGameTime;
 
   page.innerHTML = `
     <h2>🎮 解压游戏</h2>

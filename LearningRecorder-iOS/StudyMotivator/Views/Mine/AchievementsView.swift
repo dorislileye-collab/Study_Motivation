@@ -33,7 +33,7 @@ struct AchievementsView: View {
                 s.totalStudyTime >= 50 * 3600
             },
             Achievement(id: "first_theme", icon: "🎨", name: "首次购买主题", condition: "购买任意一个主题") { _, t in
-                t.ownedThemeIds.count > 0
+                t.ownedThemeIds.contains { ThemeData.theme(byId: $0).tier != .default }
             },
         ]
     }

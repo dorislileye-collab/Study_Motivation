@@ -6,13 +6,13 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var theme: ThemeManager
+    @EnvironmentObject private var tabRouter: AppTabRouter
 
     @State private var sheetMode: HomeTaskFormSheet.Mode?
     @State private var taskToDelete: StudyTask?
     @State private var showDeleteConfirm = false
     @State private var showBonusAlert = false
     @State private var bonusCoins = 0
-    @State private var toast: String?
 
     private var tasks: [StudyTask] { store.getTasksByDate(DateHelper.today) }
     private var completedCount: Int { tasks.filter(\.completed).count }
@@ -35,7 +35,6 @@ struct HomeView: View {
                 .padding(.vertical, 12)
             }
         }
-        .onAppear { store.recordActive() }
         .sheet(item: $sheetMode) { mode in
             HomeTaskFormSheet(mode: mode)
                 .environmentObject(store)
@@ -52,19 +51,6 @@ struct HomeView: View {
         } message: {
             Text("今日任务全部完成！获得 \(bonusCoins) 金币奖励！")
         }
-        .overlay(alignment: .bottom) {
-            if let toast {
-                Text(toast)
-                    .font(theme.fontDesign.font(size: 14))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.black.opacity(0.75), in: Capsule())
-                    .padding(.bottom, 48)
-                    .transition(.opacity)
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: toast)
     }
 
     // MARK: - 顶部问候 + 金币 + 连续打卡
@@ -120,7 +106,7 @@ struct HomeView: View {
                     .shadow(color: theme.quoteStyle.glow ? Color.css(theme.quoteStyle.color).opacity(0.6) : .clear,
                             radius: theme.quoteStyle.glow ? 8 : 0)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                if let deco = theme.decorationImage(for: .task) {
+                if let deco = DecorationManager.getQuoteDecorationImage() {
                     SketchImage(name: deco)
                         .frame(width: 40, height: 40)
                 }
@@ -221,7 +207,7 @@ struct HomeView: View {
         return HStack(spacing: 12) {
             // 勾选框：有装饰图用 SketchImage（对应 H5 checkbox-deco），否则用 emoji
             Group {
-                if let deco = theme.decorationImage(for: .task) {
+                if let deco = DecorationManager.getTaskCheckboxImage() {
                     SketchImage(name: deco)
                         .frame(width: 20, height: 20)
                         .opacity(task.completed ? 1 : 0.4)
@@ -312,7 +298,7 @@ struct HomeView: View {
 
     private var quickTimerButton: some View {
         Button {
-            showToast("请切换到「计时」标签页开始计时学习")
+            tabRouter.selectedTab = 2
         } label: {
             Text("⏱ 开始计时学习")
                 .font(theme.fontDesign.font(size: 16, weight: .semibold))
@@ -354,7 +340,7 @@ struct HomeView: View {
                 }
 
                 Button {
-                    showToast("请切换到「游戏」标签页进入解压游戏")
+                    tabRouter.selectedTab = 3
                 } label: {
                     Text(gameUnlocked ? "进入游戏 →" : "完成任务后解锁")
                         .font(theme.fontDesign.font(size: 15, weight: .medium))
@@ -389,14 +375,6 @@ struct HomeView: View {
         .padding(.vertical, 8)
     }
 
-    // MARK: - Toast
-
-    private func showToast(_ text: String) {
-        toast = text
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
-            if toast == text { toast = nil }
-        }
-    }
 }
 
 // MARK: - 添加 / 编辑任务表单
@@ -544,8 +522,15 @@ private struct HomeTaskFormSheet: View {
 
         switch mode {
         case .add:
-            store.addTask(title: trimmed, date: DateHelper.today,
-                          count: countValue, duration: duration, repeatDays: days)
+            if days.isEmpty {
+                store.addTask(title: trimmed, date: DateHelper.today,
+                              count: countValue, duration: duration)
+            } else {
+                for d in RepeatTaskLogic.expandDates(from: DateHelper.today, repeatDays: days) {
+                    store.addTask(title: trimmed, date: d,
+                                  count: countValue, duration: duration, repeatDays: days)
+                }
+            }
         case .edit(let task):
             store.updateTask(id: task.id) { t in
                 t.title = trimmed
@@ -562,4 +547,5 @@ private struct HomeTaskFormSheet: View {
     HomeView()
         .environmentObject(AppStore.shared)
         .environmentObject(ThemeManager.shared)
+    .environmentObject(AppTabRouter())
 }
