@@ -21,10 +21,13 @@ final class SoundService {
 
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
+    /// 固定的播放格式：player 与 buffer 必须严格一致，
+    /// 否则 scheduleBuffer 会抛 NSException 闪退（真机上 format: nil 协商不可靠）
+    private let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
 
     private init() {
         engine.attach(player)
-        engine.connect(player, to: engine.mainMixerNode, format: nil)
+        engine.connect(player, to: engine.mainMixerNode, format: format)
         // ambient：不打断其他音频、随静音开关静音，符合工具类 App 音效定位
         try? AVAudioSession.sharedInstance().setCategory(.ambient, options: [.mixWithOthers])
         try? AVAudioSession.sharedInstance().setActive(true)
@@ -82,19 +85,19 @@ final class SoundService {
             try? AVAudioSession.sharedInstance().setActive(true)
             try? engine.start()
         }
+        // 引擎起不来时宁可静默，也不调度 buffer（避免 NSException 闪退）
+        guard engine.isRunning else { return }
         if !player.isPlaying { player.play() }
         player.scheduleBuffer(buffer, completionHandler: nil)
     }
 
     /// 把一组音符（含各自起始偏移）混音渲染到单个 PCM buffer
     private func render(_ notes: [Note]) -> AVAudioPCMBuffer? {
-        let sampleRate = engine.mainMixerNode.outputFormat(forBus: 0).sampleRate
-        guard sampleRate > 0 else { return nil }
+        let sampleRate = format.sampleRate
         let total = notes.map { $0.start + $0.duration }.max() ?? 0
         guard total > 0 else { return nil }
         let frameCount = AVAudioFrameCount(total * sampleRate) + 1
-        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1),
-              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount),
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount),
               let channel = buffer.floatChannelData?[0] else { return nil }
         buffer.frameLength = frameCount
 
