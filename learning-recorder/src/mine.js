@@ -22,7 +22,7 @@ const ACHIEVEMENTS = [
   { id: 'streak_7', icon: '⭐', name: '连续7天', condition: '连续打卡7天', check: () => store.getStreakDays() >= 7 },
   { id: 'study_10h', icon: '📚', name: '学习10小时', condition: '累计学习满10小时', check: () => store.getTotalStudyTime() >= 10 * 3600 },
   { id: 'study_50h', icon: '🏆', name: '学习50小时', condition: '累计学习满50小时', check: () => store.getTotalStudyTime() >= 50 * 3600 },
-  { id: 'first_theme', icon: '🎨', name: '首次购买主题', condition: '购买任意一个主题', check: () => getOwnedThemes().length > 0 },
+  { id: 'first_theme', icon: '🎨', name: '首次购买主题', condition: '购买任意一个主题', check: () => getOwnedThemes().some(id => (getAllThemes().find(t => t.id === id)?.tier || 'default') !== 'default') },
 ];
 
 export function initMine() { renderMinePage(); }

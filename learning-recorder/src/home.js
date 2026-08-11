@@ -348,14 +348,10 @@ function setDailyQuote(quoteDeco) {
 
 /** 切换Tab */
 function switchTab(pageId) {
-  document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelector(`[data-page="${pageId}"]`).classList.add('active');
-  document.getElementById(pageId).classList.add('active');
-
-  // 切换到计时页时触发渲染
-  if (pageId === 'page-timer') {
-    import('./timer.js').then(m => m.renderTimerPage());
+  // 复用 main.js 中统一的 Tab 点击逻辑，确保目标页都会重渲染并执行清理
+  const targetTab = document.querySelector(`[data-page="${pageId}"]`);
+  if (targetTab) {
+    targetTab.click();
   }
 }
 

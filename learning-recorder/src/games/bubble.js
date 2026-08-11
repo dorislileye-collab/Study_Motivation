@@ -9,7 +9,6 @@ let bubbles = [];
 let particles = [];
 let isRunning = false;
 let timeDisplayEl = null;
-let gameTimeInterval = null;
 
 // 音效上下文
 let audioCtx = null;
@@ -271,17 +270,10 @@ export function initBubbleGame(container) {
   isRunning = true;
   animate();
 
-  // 游戏时间计时
-  gameTimeInterval = setInterval(() => {
-    store.addGameTime(1);
-    updateTimeDisplay();
-  }, 1000);
-
   // 返回清理函数
   return () => {
     isRunning = false;
     if (animId) cancelAnimationFrame(animId);
-    if (gameTimeInterval) clearInterval(gameTimeInterval);
     canvas.remove();
   };
 }

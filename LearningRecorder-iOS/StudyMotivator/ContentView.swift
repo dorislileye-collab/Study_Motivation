@@ -1,13 +1,17 @@
 import SwiftUI
 
+final class AppTabRouter: ObservableObject {
+    @Published var selectedTab = 0
+}
+
 /// 根视图 - 对应 H5 版 index.html 的底部 Tab 导航
 struct ContentView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var theme: ThemeManager
-    @State private var selectedTab = 0
+    @EnvironmentObject private var tabRouter: AppTabRouter
 
     var body: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: $tabRouter.selectedTab) {
             HomeView()
                 .tabItem { Label("首页", systemImage: "house.fill") }
                 .tag(0)
