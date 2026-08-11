@@ -32,3 +32,10 @@ struct ContentView: View {
         .overlay(BackgroundDecorationLayer())
     }
 }
+
+#Preview("完整 App") {
+    ContentView()
+        .environmentObject(AppStore.shared)
+        .environmentObject(ThemeManager.shared)
+        .environmentObject(AppTabRouter())
+}
