@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# Xcode 个人用户状态（不应入库）
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# Xcode 构建产物
+build/
+DerivedData/
+
+# SwiftPM
+.build/
