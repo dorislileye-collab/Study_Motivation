@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#F5F0E8">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="x5-fullscreen" content="true">
+  <meta name="browsermode" content="application">
+  <title>学习激励记录仪</title>
+  <!-- 主题字体配饰用在线字体（使用CN域名加速） -->
+  <link rel="preconnect" href="https://fonts.googleapis.cn">
+  <link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin>
+  <link href="https://fonts.googleapis.cn/css2?family=Nunito:wght@400;700&family=Quicksand:wght@400;600&family=Caveat:wght@500&family=Press+Start+2P&family=Orbitron:wght@500;700&family=Permanent+Marker&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=1786327296">
+</head>
+<body>
+  <div id="app">
+    <!-- 页面内容区（由JS动态渲染） -->
+    <main id="page-container">
+      <section class="page active" id="page-home"></section>
+      <section class="page" id="page-calendar"></section>
+      <section class="page" id="page-timer"></section>
+      <section class="page" id="page-game"></section>
+      <section class="page" id="page-mine"></section>
+    </main>
+
+    <!-- 底部Tab导航 -->
+    <nav id="tab-bar">
+      <div class="tab-item active" data-page="page-home">
+        <span class="tab-icon">🏠</span>
+        <span class="tab-label">首页</span>
+      </div>
+      <div class="tab-item" data-page="page-calendar">
+        <span class="tab-icon">📅</span>
+        <span class="tab-label">日历</span>
+      </div>
+      <div class="tab-item" data-page="page-timer">
+        <span class="tab-icon">⏱</span>
+        <span class="tab-label">计时</span>
+      </div>
+      <div class="tab-item" data-page="page-game">
+        <span class="tab-icon">🎮</span>
+        <span class="tab-label">游戏</span>
+      </div>
+      <div class="tab-item" data-page="page-mine">
+        <span class="tab-icon">👤</span>
+        <span class="tab-label">我的</span>
+      </div>
+    </nav>
+  </div>
+
+  <script type="module" src="main.js?v=1786327296"></script>
+</body>
+</html>
