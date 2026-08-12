@@ -10,6 +10,21 @@ let sandCleanup = null;
 let bubbleCleanup = null;
 let crushCleanup = null;
 
+function cleanupActiveMiniGames() {
+  if (sandCleanup) {
+    sandCleanup();
+    sandCleanup = null;
+  }
+  if (bubbleCleanup) {
+    bubbleCleanup();
+    bubbleCleanup = null;
+  }
+  if (crushCleanup) {
+    crushCleanup();
+    crushCleanup = null;
+  }
+}
+
 /** 初始化游戏页 */
 export function initGame() {
   renderGamePage();
@@ -154,7 +169,7 @@ async function enterGame(gameType) {
 
     // 返回按钮
     document.getElementById('btn-back-game-list').addEventListener('click', () => {
-      if (sandCleanup) sandCleanup();
+      cleanupActiveMiniGames();
       renderGamePage();
     });
 
@@ -204,7 +219,7 @@ async function enterGame(gameType) {
 
     // 返回按钮
     document.getElementById('btn-back-game-list').addEventListener('click', () => {
-      if (bubbleCleanup) bubbleCleanup();
+      cleanupActiveMiniGames();
       renderGamePage();
     });
 
@@ -237,7 +252,7 @@ async function enterGame(gameType) {
 
     // 返回按钮
     document.getElementById('btn-back-game-list').addEventListener('click', () => {
-      if (crushCleanup) crushCleanup();
+      cleanupActiveMiniGames();
       renderGamePage();
     });
 
@@ -298,6 +313,7 @@ function startGameTimer() {
       clearInterval(gameTimerInterval);
       gameTimerInterval = null;
       isFrozen = true;
+      cleanupActiveMiniGames();
       renderGamePage(); // 重新渲染，显示冻结状态
       return;
     }
@@ -330,16 +346,5 @@ export function cleanupGame() {
     clearInterval(gameTimerInterval);
     gameTimerInterval = null;
   }
-  if (sandCleanup) {
-    sandCleanup();
-    sandCleanup = null;
-  }
-  if (bubbleCleanup) {
-    bubbleCleanup();
-    bubbleCleanup = null;
-  }
-  if (crushCleanup) {
-    crushCleanup();
-    crushCleanup = null;
-  }
+  cleanupActiveMiniGames();
 }

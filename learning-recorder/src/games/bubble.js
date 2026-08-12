@@ -215,6 +215,15 @@ function popBubble(bubble) {
 
 /** 初始化泡泡游戏 */
 export function initBubbleGame(container) {
+  // 防止重复进入时复用旧状态
+  if (animId) {
+    cancelAnimationFrame(animId);
+    animId = null;
+  }
+  isRunning = false;
+  bubbles = [];
+  particles = [];
+
   canvas = document.createElement('canvas');
   canvas.className = 'bubble-canvas';
   canvas.style.width = '100%';
@@ -273,8 +282,25 @@ export function initBubbleGame(container) {
   // 返回清理函数
   return () => {
     isRunning = false;
-    if (animId) cancelAnimationFrame(animId);
-    canvas.remove();
+    if (animId) {
+      cancelAnimationFrame(animId);
+      animId = null;
+    }
+
+    bubbles = [];
+    particles = [];
+    timeDisplayEl = null;
+
+    if (audioCtx) {
+      audioCtx.close().catch(() => {});
+      audioCtx = null;
+    }
+
+    if (canvas) {
+      canvas.remove();
+      canvas = null;
+    }
+    ctx = null;
   };
 }
 

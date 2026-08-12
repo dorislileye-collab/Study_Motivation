@@ -7,6 +7,35 @@
 let cleanupFn = null;
 let timeDisplayEl = null;
 let audioCtx = null;
+let activeIntervals = new Set();
+let activeTimeouts = new Set();
+
+function startTrackedInterval(fn, delay) {
+  const id = setInterval(fn, delay);
+  activeIntervals.add(id);
+  return id;
+}
+
+function stopTrackedInterval(id) {
+  clearInterval(id);
+  activeIntervals.delete(id);
+}
+
+function startTrackedTimeout(fn, delay) {
+  const id = setTimeout(() => {
+    activeTimeouts.delete(id);
+    fn();
+  }, delay);
+  activeTimeouts.add(id);
+  return id;
+}
+
+function clearRuntimeTimers() {
+  activeIntervals.forEach(id => clearInterval(id));
+  activeIntervals.clear();
+  activeTimeouts.forEach(id => clearTimeout(id));
+  activeTimeouts.clear();
+}
 
 export function setTimeDisplay(el) {
   timeDisplayEl = el;
@@ -124,7 +153,7 @@ function playDissolveSound() {
   
   // 创建多个水泡声
   for (let i = 0; i < 8; i++) {
-    setTimeout(() => {
+    startTrackedTimeout(() => {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       
@@ -149,6 +178,8 @@ function playDissolveSound() {
  * @returns {Function} 清理函数
  */
 export function initCrushGame(container) {
+  clearRuntimeTimers();
+
   // 渲染游戏UI
   container.innerHTML = `
     <div class="crush-game">
@@ -231,7 +262,7 @@ export function initCrushGame(container) {
       if (!text) {
         textarea.classList.add('shake');
         textarea.placeholder = '先写下你的烦恼吧...';
-        setTimeout(() => textarea.classList.remove('shake'), 500);
+        startTrackedTimeout(() => textarea.classList.remove('shake'), 500);
         return;
       }
       startDestruction(text, btn.dataset.method);
@@ -246,7 +277,14 @@ export function initCrushGame(container) {
   // 渲染历史记录
   renderHistory();
 
-  cleanupFn = () => {};
+  cleanupFn = () => {
+    clearRuntimeTimers();
+    if (audioCtx) {
+      audioCtx.close().catch(() => {});
+      audioCtx = null;
+    }
+    timeDisplayEl = null;
+  };
   return cleanupFn;
 }
 
@@ -254,6 +292,8 @@ export function initCrushGame(container) {
  * 开始销毁动画
  */
 function startDestruction(text, method) {
+  clearRuntimeTimers();
+
   const canvasSection = document.getElementById('crush-canvas-section');
   const inputSection = document.querySelector('.crush-input-section');
   const methodsSection = document.querySelector('.crush-methods-section');
@@ -318,7 +358,7 @@ function animateBurn(ctx, canvas, text, animText) {
   const maxFrames = 120;
 
   // 文字渐变为燃烧效果
-  const burnInterval = setInterval(() => {
+  const burnInterval = startTrackedInterval(() => {
     frame++;
     const progress = frame / maxFrames;
 
@@ -391,7 +431,7 @@ function animateBurn(ctx, canvas, text, animText) {
     ctx.globalAlpha = 1;
 
     if (frame >= maxFrames) {
-      clearInterval(burnInterval);
+      stopTrackedInterval(burnInterval);
       showComplete('烦恼已被火焰吞噬 🔥');
     }
   }, 1000 / 30);
@@ -410,7 +450,7 @@ function animateShred(ctx, canvas, text, animText) {
   let frame = 0;
   const maxFrames = 90;
 
-  const shredInterval = setInterval(() => {
+  const shredInterval = startTrackedInterval(() => {
     frame++;
     const progress = frame / maxFrames;
 
@@ -472,7 +512,7 @@ function animateShred(ctx, canvas, text, animText) {
     ctx.globalAlpha = 1;
 
     if (frame >= maxFrames) {
-      clearInterval(shredInterval);
+      stopTrackedInterval(shredInterval);
       showComplete('烦恼已化为碎片 ⚙️');
     }
   }, 1000 / 30);
@@ -492,7 +532,7 @@ function animateBlow(ctx, canvas, text, animText) {
   const maxFrames = 100;
   let blowStarted = false;
 
-  const blowInterval = setInterval(() => {
+  const blowInterval = startTrackedInterval(() => {
     frame++;
     const progress = frame / maxFrames;
 
@@ -548,7 +588,7 @@ function animateBlow(ctx, canvas, text, animText) {
     ctx.globalAlpha = 1;
 
     if (frame >= maxFrames) {
-      clearInterval(blowInterval);
+      stopTrackedInterval(blowInterval);
       showComplete('烦恼已被风吹散 💨');
     }
   }, 1000 / 30);
@@ -567,7 +607,7 @@ function animateDissolve(ctx, canvas, text, animText) {
   let frame = 0;
   const maxFrames = 150;
 
-  const dissolveInterval = setInterval(() => {
+  const dissolveInterval = startTrackedInterval(() => {
     frame++;
     const progress = frame / maxFrames;
 
@@ -624,7 +664,7 @@ function animateDissolve(ctx, canvas, text, animText) {
     ctx.globalAlpha = 1;
 
     if (frame >= maxFrames) {
-      clearInterval(dissolveInterval);
+      stopTrackedInterval(dissolveInterval);
       showComplete('烦恼已慢慢溶解 💧');
     }
   }, 1000 / 30);
@@ -646,6 +686,8 @@ function showComplete(message) {
  * 返回输入界面
  */
 function backToInput() {
+  clearRuntimeTimers();
+
   const canvasSection = document.getElementById('crush-canvas-section');
   const inputSection = document.querySelector('.crush-input-section');
   const methodsSection = document.querySelector('.crush-methods-section');

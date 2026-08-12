@@ -51,12 +51,43 @@ function getDefaultState() {
   };
 }
 
+/** 兼容旧版本数据结构，补齐缺失字段并修正异常类型 */
+function normalizeLoadedState(data) {
+  const def = getDefaultState();
+  if (!data || typeof data !== 'object') {
+    return { ...def };
+  }
+
+  const normalized = { ...def, ...data };
+
+  if (!Array.isArray(normalized.tasks)) normalized.tasks = [];
+  if (!Array.isArray(normalized.coinRecords)) normalized.coinRecords = [];
+  if (!Array.isArray(normalized.ownedWhiteNoises)) normalized.ownedWhiteNoises = [];
+
+  if (typeof normalized.coins !== 'number') normalized.coins = 0;
+  if (typeof normalized.gameTimeToday !== 'number') normalized.gameTimeToday = 0;
+  if (typeof normalized.streakDays !== 'number') normalized.streakDays = 0;
+  if (typeof normalized.totalStudySeconds !== 'number') normalized.totalStudySeconds = 0;
+
+  if (typeof normalized.lastActiveDate !== 'string') normalized.lastActiveDate = '';
+  if (typeof normalized.lastDailyBufferDate !== 'string') normalized.lastDailyBufferDate = '';
+
+  if (!normalized.dailyStudySeconds || typeof normalized.dailyStudySeconds !== 'object' || Array.isArray(normalized.dailyStudySeconds)) {
+    normalized.dailyStudySeconds = {};
+  }
+  if (!normalized.dailyNotes || typeof normalized.dailyNotes !== 'object' || Array.isArray(normalized.dailyNotes)) {
+    normalized.dailyNotes = {};
+  }
+
+  return normalized;
+}
+
 /** 从 localStorage 加载数据 */
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const data = JSON.parse(raw);
+      const data = normalizeLoadedState(JSON.parse(raw));
       // 检查日期，如果不是今天则重置游戏时间
       const today = getToday();
       if (data._lastGameDate !== today) {
