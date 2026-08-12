@@ -36,15 +36,27 @@ struct TimerView: View {
     }
 
     /// 计时会话（对应 H5 的 timerState）
+    /// elapsed 基于时间戳计算：锁屏/切后台期间 Timer.publish 暂停，但时长不丢失
     private struct Session {
         var taskId: String
         var taskTitle: String
         var mode: TimerMode
-        var elapsed = 0            // 已用秒数
-        var targetTime: Int?       // 目标秒数（时间模式）
-        var targetCount: Int?      // 目标次数（次数模式）
-        var currentCount = 0       // 已完成次数
+        var startedAt: Date? = nil  // 本次运行的起始时刻（暂停时为 nil）
+        var accumulated = 0         // 暂停前已累计的秒数
+        var credited = 0            // 已记入学习时长的秒数
+        var targetTime: Int?        // 目标秒数（时间模式）
+        var targetCount: Int?       // 目标次数（次数模式）
+        var currentCount = 0        // 已完成次数
         var isRunning = false
+
+        /// 已用秒数（锁屏后依然准确）
+        var elapsed: Int {
+            var total = accumulated
+            if isRunning, let startedAt {
+                total += max(0, Int(Date().timeIntervalSince(startedAt)))
+            }
+            return total
+        }
     }
 
     /// 奖励结算结果（对应 H5 completeTimer 的各 earnedXxx）
@@ -65,6 +77,8 @@ struct TimerView: View {
     @State private var reward: RewardResult?
     @State private var showShortEndConfirm = false
     @State private var showCelebration = false
+    /// 每秒 +1 驱动 UI 刷新（elapsed 由时间戳算出，需要一个状态变化触发重绘）
+    @State private var tickCounter = 0
 
     private let ticker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -105,10 +119,7 @@ struct TimerView: View {
             Button("确定") { discardSession() }
             Button("取消", role: .cancel) {}
         }
-        .onDisappear {
-            // 离开页面停止白噪音（计时本身跨 Tab 保持运行）
-            whiteNoise.stop()
-        }
+        // 白噪音离开本 Tab 后继续播放（锁屏也不断，用户可手动停止）
     }
 
     // MARK: - 任务选择页（H5 renderTimerPage）
@@ -336,7 +347,7 @@ struct TimerView: View {
         HStack(spacing: 12) {
             // 开始/暂停
             Button {
-                session?.isRunning.toggle()
+                if s.isRunning { stopRunning() } else { resumeRunning() }
             } label: {
                 Text(s.isRunning ? "⏸ 暂停" : (s.mode == .count ? "▶ 开始计时" : "▶ 开始"))
                     .timerButtonStyle(theme: theme)
@@ -553,19 +564,49 @@ struct TimerView: View {
         phase = .timing
     }
 
-    /// 每秒 tick（对应 H5 setInterval 回调）
+    /// 每秒 tick（对应 H5 setInterval 回调；elapsed 由时间戳算出，锁屏暂停的 tick 会在解锁后自动补齐）
     private func tick() {
-        guard var s = session, s.isRunning, phase == .timing else { return }
-        s.elapsed += 1
-        session = s
-        store.addStudyTime(1)
-
-        // 时间模式到达目标：自动停止并进入完成流程
-        if s.mode == .time, let target = s.targetTime, s.elapsed >= target {
-            session?.isRunning = false
-            SoundService.shared.playTimerEndSound()
-            showTimerComplete()
+        guard var s = session, phase == .timing else { return }
+        if s.isRunning {
+            // 补记学习时长（锁屏期间没有 tick，这里按时间戳差值一次性补齐）
+            let e = s.elapsed
+            if e > s.credited {
+                store.addStudyTime(e - s.credited)
+                s.credited = e
+                session = s
+            }
+            // 时间模式到达目标：自动停止并进入完成流程
+            if s.mode == .time, let target = s.targetTime, e >= target {
+                stopRunning()
+                session?.accumulated = target
+                SoundService.shared.playTimerEndSound()
+                showTimerComplete()
+                return
+            }
         }
+        tickCounter += 1
+    }
+
+    /// 暂停：结算已累计秒数并补记学习时长
+    private func stopRunning() {
+        guard var s = session, s.isRunning else { return }
+        let e = s.elapsed
+        s.accumulated = e
+        s.startedAt = nil
+        s.isRunning = false
+        if e > s.credited {
+            store.addStudyTime(e - s.credited)
+            s.credited = e
+        }
+        session = s
+    }
+
+    /// 开始/继续：记录起始时刻
+    private func resumeRunning() {
+        guard var s = session, !s.isRunning else { return }
+        s.startedAt = Date()
+        s.isRunning = true
+        session = s
     }
 
     /// 次数模式：完成一次（对应 H5 btn-timer-count）
@@ -576,15 +617,16 @@ struct TimerView: View {
         session = s
         if let target = s.targetCount, s.currentCount >= target {
             // 次数达成：停止计时，走与时间模式一致的完成流程
-            session?.isRunning = false
+            stopRunning()
             SoundService.shared.playTimerEndSound()
             showTimerComplete()
         }
     }
 
-    /// 重置计时（对应 H5 resetTimer）
+    /// 重置计时（对应 H5 resetTimer；已记入的学习时长保留）
     private func resetTimer() {
-        session?.elapsed = 0
+        session?.accumulated = 0
+        session?.startedAt = nil
         session?.currentCount = 0
         session?.isRunning = false
         whiteNoise.stop()
@@ -593,7 +635,7 @@ struct TimerView: View {
     /// 结束计时（对应 H5 endTimer：少于10秒且无次数时需确认）
     private func endTimer() {
         guard let s = session else { return }
-        session?.isRunning = false
+        stopRunning()
         if s.elapsed < 10 && s.currentCount == 0 {
             showShortEndConfirm = true
         } else {
@@ -621,16 +663,21 @@ struct TimerView: View {
         guard let s = session else { return }
         let today = DateHelper.today
         let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 最终用时（时间戳口径），并补记未入账的学习时长
+        let finalElapsed = s.elapsed
+        if finalElapsed > s.credited {
+            store.addStudyTime(finalElapsed - s.credited)
+        }
 
-        // 保存学习心得
+        // 保存学习心得（关联任务名，日历页可见）
         if !trimmed.isEmpty {
-            store.addNote(date: today, note: trimmed)
+            store.addNote(date: today, note: trimmed, taskTitle: s.taskTitle)
         }
 
         // 更新任务为已完成
         store.updateTask(id: s.taskId) {
             $0.completed = true
-            $0.elapsed = s.elapsed
+            $0.elapsed = finalElapsed
             $0.notes = trimmed
         }
 
@@ -638,7 +685,7 @@ struct TimerView: View {
         store.recordActive()
 
         // 金币奖励：1分钟=1金币
-        let mins = s.elapsed / 60
+        let mins = finalElapsed / 60
         let earnedTime = store.addCoins(mins, reason: "计时\(mins)分钟")
 
         // 每日首次计时完成奖励50金币（一天一次）

@@ -8,20 +8,21 @@ struct WhiteNoise: Identifiable, Equatable {
     let icon: String
     /// 价格（金币），0 为免费
     let price: Int
-    /// Bundle 音频文件名（Resources/Audio/*.mp3，不含扩展名）
-    let audioFile: String
+    /// Bundle 音频文件名（Resources/Audio/*.mp3，不含扩展名）；nil 表示程序化生成（雨声/时钟）
+    let audioFile: String?
 }
 
 /// 白噪音播放管理器 - 对应 H5 white-noise.js 的模块级播放状态
-/// H5 中 rain/clock 为 Web Audio 程序生成，iOS 统一用 Bundle 内 mp3 循环播放近似；
-/// 付费项的文件映射沿用 H5（stream→rain、crickets→clock、waves→snow-mountain）。
+/// 与 H5 保持一致：雨声（棕噪音+低通滤波）/时钟滴答（800Hz 每秒一滴答）程序化生成；
+/// 付费项（溪流/虫鸣/海浪）播放 Bundle 内 mp3 文件（沿用 H5 的文件映射）。
+/// 音频会话用 .playback，配合 Info.plist 的 audio 后台模式，锁屏后可持续播放。
 final class WhiteNoiseManager: ObservableObject {
     static let shared = WhiteNoiseManager()
 
     /// 白噪音列表（与 H5 一致：雨声/时钟滴答免费，溪流/虫鸣/海浪付费）
     static let noises: [WhiteNoise] = [
-        WhiteNoise(id: "rain",     name: "雨声",     icon: "🌧️", price: 0,   audioFile: "rain"),
-        WhiteNoise(id: "clock",    name: "时钟滴答", icon: "🕐", price: 0,   audioFile: "clock"),
+        WhiteNoise(id: "rain",     name: "雨声",     icon: "🌧️", price: 0,   audioFile: nil),
+        WhiteNoise(id: "clock",    name: "时钟滴答", icon: "🕐", price: 0,   audioFile: nil),
         WhiteNoise(id: "stream",   name: "溪流潺潺", icon: "🏞️", price: 150, audioFile: "rain"),
         WhiteNoise(id: "crickets", name: "虫鸣夏夜", icon: "", price: 200, audioFile: "clock"),
         WhiteNoise(id: "waves",    name: "海浪轻拍", icon: "🌊", price: 250, audioFile: "snow-mountain"),
@@ -31,9 +32,20 @@ final class WhiteNoiseManager: ObservableObject {
     @Published private(set) var isMuted = false
     @Published var volume: Double = 0.5 { didSet { applyVolume() } }
 
+    /// 文件类白噪音播放器
     private var player: AVAudioPlayer?
+    /// 生成类白噪音引擎（雨声/时钟）
+    private let engine = AVAudioEngine()
+    private let playerNode = AVAudioPlayerNode()
+    /// 固定格式，playerNode 连接与渲染 buffer 必须一致（否则 scheduleBuffer 抛异常）
+    private let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
 
     var isPlaying: Bool { currentId != nil }
+
+    private init() {
+        engine.attach(playerNode)
+        engine.connect(playerNode, to: engine.mainMixerNode, format: format)
+    }
 
     /// 播放白噪音；付费且未拥有时自动尝试购买（对应 H5 playWhiteNoise）
     /// - Returns: 失败文案（金币不足），nil 表示成功开始播放
@@ -47,21 +59,31 @@ final class WhiteNoiseManager: ObservableObject {
             store.addOwnedWhiteNoise(noise.id)
         }
 
-        stop()
+        stopPlayback()
 
-        guard let url = Bundle.main.url(forResource: noise.audioFile, withExtension: "mp3"),
-              let newPlayer = try? AVAudioPlayer(contentsOf: url) else {
-            return nil
-        }
-        // playback + mixWithOthers：计时中可持续播放，不打断其他音频
+        // playback + mixWithOthers：计时中可持续播放，锁屏后不断（需 audio 后台模式）
         let audioSession = AVAudioSession.sharedInstance()
         try? audioSession.setCategory(.playback, options: [.mixWithOthers])
         try? audioSession.setActive(true)
 
-        newPlayer.numberOfLoops = -1  // 无限循环
-        newPlayer.volume = Float(volume)
-        newPlayer.play()
-        player = newPlayer
+        if let file = noise.audioFile {
+            // 文件类（付费项）
+            guard let url = Bundle.main.url(forResource: file, withExtension: "mp3"),
+                  let newPlayer = try? AVAudioPlayer(contentsOf: url) else { return nil }
+            newPlayer.numberOfLoops = -1  // 无限循环
+            newPlayer.volume = Float(volume)
+            newPlayer.play()
+            player = newPlayer
+        } else {
+            // 生成类：雨声 / 时钟滴答（算法与 H5 一致）
+            guard let buffer = noise.id == "rain" ? renderRainBuffer() : renderClockBuffer() else { return nil }
+            if !engine.isRunning { try? engine.start() }
+            guard engine.isRunning else { return nil }
+            if !playerNode.isPlaying { playerNode.play() }
+            playerNode.scheduleBuffer(buffer, at: nil, options: .loops)
+            playerNode.volume = Float(volume)
+        }
+
         currentId = noise.id
         volume = 0.5
         isMuted = false
@@ -70,10 +92,16 @@ final class WhiteNoiseManager: ObservableObject {
 
     /// 停止播放（对应 H5 stopWhiteNoise）
     func stop() {
+        stopPlayback()
+        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+    }
+
+    private func stopPlayback() {
         player?.stop()
         player = nil
+        playerNode.stop()
+        if engine.isRunning { engine.stop() }
         currentId = nil
-        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
     }
 
     /// 切换静音（对应 H5 toggleMute）
@@ -83,7 +111,57 @@ final class WhiteNoiseManager: ObservableObject {
     }
 
     private func applyVolume() {
-        player?.volume = isMuted ? 0 : Float(volume)
+        let v = isMuted ? 0 : Float(volume)
+        player?.volume = v
+        playerNode.volume = v
+    }
+
+    // MARK: - 程序化生成（与 H5 startRainSound / startClockSound 一致）
+
+    /// 雨声：棕色噪音放大 3.5 倍 + 800Hz 低通，2 秒循环（H5 算法）
+    private func renderRainBuffer() -> AVAudioPCMBuffer? {
+        let sampleRate = format.sampleRate
+        let frameCount = AVAudioFrameCount(2 * sampleRate)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount),
+              let channel = buffer.floatChannelData?[0] else { return nil }
+        buffer.frameLength = frameCount
+
+        // 一阶低通（RC 近似 H5 的 800Hz biquad lowpass）
+        let alpha = 1.0 - exp(-2.0 * Double.pi * 800.0 / sampleRate)
+        var lastOut = 0.0
+        var filtered = 0.0
+        var peak: Float = 0.001
+        for i in 0..<Int(frameCount) {
+            let white = Double.random(in: -1...1)
+            // 棕色噪音（更柔和，像雨声）
+            lastOut = (lastOut + 0.02 * white) / 1.02
+            let brown = lastOut * 3.5
+            filtered += alpha * (brown - filtered)
+            channel[i] = Float(filtered)
+            peak = max(peak, abs(channel[i]))
+        }
+        // 归一化到 0.8，防止放大后削波
+        let gain = 0.8 / peak
+        for i in 0..<Int(frameCount) { channel[i] *= gain }
+        return buffer
+    }
+
+    /// 时钟滴答：每秒一声 800Hz 正弦短音，0.05 秒指数衰减（H5 算法），1 秒循环
+    private func renderClockBuffer() -> AVAudioPCMBuffer? {
+        let sampleRate = format.sampleRate
+        let frameCount = AVAudioFrameCount(sampleRate)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount),
+              let channel = buffer.floatChannelData?[0] else { return nil }
+        buffer.frameLength = frameCount
+
+        let tickFrames = Int(0.05 * sampleRate)
+        for i in 0..<tickFrames {
+            let t = Double(i) / sampleRate
+            // 指数衰减到 0.001（H5 exponentialRampToValueAtTime）
+            let envelope = pow(0.001, t / 0.05)
+            channel[i] = Float(sin(2 * .pi * 800 * t) * envelope * 0.3)
+        }
+        return buffer
     }
 }
 

@@ -205,18 +205,25 @@ struct HomeView: View {
     private func taskRow(_ task: StudyTask) -> some View {
         let style = theme.taskStyle
         return HStack(spacing: 12) {
-            // 勾选框：有装饰图用 SketchImage（对应 H5 checkbox-deco），否则用 emoji
-            Group {
-                if let deco = DecorationManager.getTaskCheckboxImage() {
-                    SketchImage(name: deco)
-                        .frame(width: 20, height: 20)
-                        .opacity(task.completed ? 1 : 0.4)
-                        .grayscale(task.completed ? 0 : 0.6)
-                } else {
-                    Text(task.completed ? "✅" : "⬜")
-                        .font(theme.fontDesign.font(size: 17))
+            // 勾选框：可手动勾选/取消（有装饰图用 SketchImage（对应 H5 checkbox-deco），否则用 emoji）
+            Button {
+                toggleTask(task)
+            } label: {
+                Group {
+                    if let deco = DecorationManager.getTaskCheckboxImage() {
+                        SketchImage(name: deco)
+                            .frame(width: 20, height: 20)
+                            .opacity(task.completed ? 1 : 0.4)
+                            .grayscale(task.completed ? 0 : 0.6)
+                    } else {
+                        Text(task.completed ? "✅" : "⬜")
+                            .font(theme.fontDesign.font(size: 17))
+                    }
                 }
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(task.title)
@@ -274,7 +281,6 @@ struct HomeView: View {
                 .padding(.leading, 3)
         }
         .contentShape(Rectangle())
-        .onTapGesture { toggleTask(task) }
     }
 
     /// 勾选切换：照搬 H5 逻辑 —— 全部完成时领取每日 50 金币 buffer（每天一次）

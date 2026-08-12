@@ -13,6 +13,10 @@ struct CalendarView: View {
     @State private var deletingTask: StudyTask?
     @State private var showDeleteConfirm = false
     @State private var newNote = ""
+    @State private var editingNote: StudyNote?
+    @State private var editedNoteText = ""
+    @State private var deletingNote: StudyNote?
+    @State private var showDeleteNoteConfirm = false
 
     private let weekdayLabels = ["日", "一", "二", "三", "四", "五", "六"]
 
@@ -57,6 +61,33 @@ struct CalendarView: View {
             Button("取消", role: .cancel) {}
         } message: { task in
             Text("确定要删除「\(task.title)」吗？")
+        }
+        // 编辑心得
+        .alert("编辑心得", isPresented: Binding(
+            get: { editingNote != nil },
+            set: { if !$0 { editingNote = nil } }
+        )) {
+            TextField("心得内容", text: $editedNoteText)
+            Button("保存") {
+                if let note = editingNote, let date = selectedDate {
+                    let trimmed = editedNoteText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        store.updateNote(date: date, id: note.id, newText: trimmed)
+                    }
+                }
+                editingNote = nil
+            }
+            Button("取消", role: .cancel) { editingNote = nil }
+        }
+        // 删除心得
+        .alert("删除这条心得？", isPresented: $showDeleteNoteConfirm) {
+            Button("删除", role: .destructive) {
+                if let note = deletingNote, let date = selectedDate {
+                    store.deleteNote(date: date, id: note.id)
+                }
+                deletingNote = nil
+            }
+            Button("取消", role: .cancel) { deletingNote = nil }
         }
     }
 
@@ -294,11 +325,42 @@ struct CalendarView: View {
                         .font(theme.fontDesign.font(size: 13))
                         .foregroundStyle(theme.textSecondary)
                 } else {
-                    ForEach(Array(notes.enumerated()), id: \.offset) { _, note in
-                        Text("📝 \(note)")
-                            .font(theme.fontDesign.font(size: 13))
-                            .foregroundStyle(theme.textPrimary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    ForEach(notes) { note in
+                        HStack(alignment: .top, spacing: 8) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                // 书写时间 + 来源任务（计时完成后填写的会有任务名）
+                                HStack(spacing: 6) {
+                                    Text(note.createdAt, format: .dateTime.hour().minute())
+                                        .font(theme.fontDesign.font(size: 11))
+                                        .foregroundStyle(theme.textSecondary)
+                                    if let taskTitle = note.taskTitle {
+                                        Text("📌 \(taskTitle)")
+                                            .font(theme.fontDesign.font(size: 11))
+                                            .foregroundStyle(Color.css(theme.taskStyle.check))
+                                            .lineLimit(1)
+                                    }
+                                }
+                                Text(note.text)
+                                    .font(theme.fontDesign.font(size: 13))
+                                    .foregroundStyle(theme.textPrimary)
+                            }
+                            Spacer(minLength: 0)
+                            Button {
+                                editedNoteText = note.text
+                                editingNote = note
+                            } label: {
+                                Text("✏️").font(theme.fontDesign.font(size: 13))
+                            }
+                            .buttonStyle(.plain)
+                            Button {
+                                deletingNote = note
+                                showDeleteNoteConfirm = true
+                            } label: {
+                                Text("🗑️").font(theme.fontDesign.font(size: 13))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
 

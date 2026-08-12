@@ -43,6 +43,23 @@ struct StudyTask: Identifiable, Codable, Equatable {
     }
 }
 
+/// 一条学习心得（含书写时间与来源任务）
+struct StudyNote: Identifiable, Codable, Equatable {
+    var id: String
+    var text: String
+    /// 书写时间
+    var createdAt: Date
+    /// 计时完成后填写时关联的任务名称（日历手动填写为 nil）
+    var taskTitle: String?
+
+    init(id: String = UUID().uuidString, text: String, createdAt: Date = Date(), taskTitle: String? = nil) {
+        self.id = id
+        self.text = text
+        self.createdAt = createdAt
+        self.taskTitle = taskTitle
+    }
+}
+
 /// 金币流水记录
 struct CoinRecord: Codable, Equatable {
     var date: String
@@ -60,10 +77,37 @@ struct AppState: Codable {
     var lastActiveDate: String = ""
     var totalStudySeconds: Int = 0
     var dailyStudySeconds: [String: Int] = [:]
-    var dailyNotes: [String: [String]] = [:]
+    var dailyNotes: [String: [StudyNote]] = [:]
     var lastDailyBufferDate: String = ""
     var ownedWhiteNoises: [String] = []
     var lastGameDate: String = ""
+
+    /// 兼容旧版数据：dailyNotes 曾是 [String: [String]]，解码失败时迁移为 StudyNote
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        tasks = try container.decodeIfPresent([StudyTask].self, forKey: .tasks) ?? []
+        coins = try container.decodeIfPresent(Int.self, forKey: .coins) ?? 0
+        coinRecords = try container.decodeIfPresent([CoinRecord].self, forKey: .coinRecords) ?? []
+        gameTimeToday = try container.decodeIfPresent(Int.self, forKey: .gameTimeToday) ?? 0
+        streakDays = try container.decodeIfPresent(Int.self, forKey: .streakDays) ?? 0
+        lastActiveDate = try container.decodeIfPresent(String.self, forKey: .lastActiveDate) ?? ""
+        totalStudySeconds = try container.decodeIfPresent(Int.self, forKey: .totalStudySeconds) ?? 0
+        dailyStudySeconds = try container.decodeIfPresent([String: Int].self, forKey: .dailyStudySeconds) ?? [:]
+        if let structured = try container.decodeIfPresent([String: [StudyNote]].self, forKey: .dailyNotes) {
+            dailyNotes = structured
+        } else if let legacy = try? container.decode([String: [String]].self, forKey: .dailyNotes) {
+            dailyNotes = legacy.mapValues { texts in
+                texts.map { StudyNote(text: $0) }
+            }
+        } else {
+            dailyNotes = [:]
+        }
+        lastDailyBufferDate = try container.decodeIfPresent(String.self, forKey: .lastDailyBufferDate) ?? ""
+        ownedWhiteNoises = try container.decodeIfPresent([String].self, forKey: .ownedWhiteNoises) ?? []
+        lastGameDate = try container.decodeIfPresent(String.self, forKey: .lastGameDate) ?? ""
+    }
+
+    init() {}
 }
 
 // MARK: - 日期工具

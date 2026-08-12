@@ -68,10 +68,8 @@ struct GameCenterView: View {
     @EnvironmentObject private var theme: ThemeManager
     @State private var path: [GameKind] = []
 
-    /// 游戏列表页每秒计时（对应 H5 renderGamePage 中启动的 startGameTimer）
-    private let ticker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
-
     /// 今日完成任意 1 个任务后解锁（对应 H5 hasCompletedTask）
+    /// 注意：游戏时间只在实际游玩时（GameScreen 内）累计，逛列表不扣时间
     private var hasCompletedTask: Bool {
         store.getTasksByDate(DateHelper.today).contains { $0.completed }
     }
@@ -117,11 +115,6 @@ struct GameCenterView: View {
                 case .crush: CrushGameView()
                 }
             }
-        }
-        .onReceive(ticker) { _ in
-            // 已解锁、未冻结、且停留在列表页时每秒 +1（进入游戏后由游戏页自己计时）
-            guard hasCompletedTask, !frozen, path.isEmpty else { return }
-            store.addGameTime(1)
         }
     }
 

@@ -160,13 +160,27 @@ final class AppStore: ObservableObject {
 
     // MARK: - 学习心得
 
-    func addNote(date: String, note: String) {
-        state.dailyNotes[date, default: []].append(note)
+    /// 添加学习心得；taskTitle 在计时完成后填写时传入关联任务名
+    func addNote(date: String, note: String, taskTitle: String? = nil) {
+        state.dailyNotes[date, default: []].append(StudyNote(text: note, taskTitle: taskTitle))
         save()
     }
 
-    func getNotes(_ date: String) -> [String] {
+    func getNotes(_ date: String) -> [StudyNote] {
         state.dailyNotes[date] ?? []
+    }
+
+    /// 修改心得内容
+    func updateNote(date: String, id: String, newText: String) {
+        guard let idx = state.dailyNotes[date]?.firstIndex(where: { $0.id == id }) else { return }
+        state.dailyNotes[date]?[idx].text = newText
+        save()
+    }
+
+    /// 删除心得
+    func deleteNote(date: String, id: String) {
+        state.dailyNotes[date]?.removeAll { $0.id == id }
+        save()
     }
 
     // MARK: - 日历
